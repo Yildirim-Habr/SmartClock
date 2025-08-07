@@ -1,4 +1,5 @@
 from kivy.config import Config
+Config.set('kivy', 'window_icon', 'icon.ico')
 Config.set('graphics', 'resizable', '0')
 Config.set('graphics', 'width', '400')
 Config.set('graphics', 'height', '300')
