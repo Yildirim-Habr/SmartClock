@@ -106,7 +106,7 @@ class SmartClockApp(MDApp):
 
         # Create beautiful plot
         plt.figure(figsize=(12, 6))
-        plt.plot(df['date'], df['duration_sec'], 
+        plt.plot(df['date'], df['duration_hr'], 
                 marker='o', linewidth=3, markersize=8,
                 color='#4A90E2', markerfacecolor="#4A90E2",
                 markeredgecolor='white', markeredgewidth=2)
