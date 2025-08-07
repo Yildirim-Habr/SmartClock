@@ -5,35 +5,95 @@ Config.set('graphics', 'width', '400')
 Config.set('graphics', 'height', '300')
 
 from kivymd.app import MDApp
-from kivy.lang import Builder
+from kivymd.uix.screen import MDScreen
+from kivy.uix.screenmanager import SlideTransition
+from kivymd.uix.label import MDLabel
+from kivymd.uix.button import MDFloatingActionButton
+from kivy.uix.screenmanager import ScreenManager
 from kivy.clock import Clock
+from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.image import Image
 from io import BytesIO
 from datetime import datetime
-from kivymd.uix.screen import MDScreen
-
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 import time
 import os
 import base64
 import sys
 import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
+
+class StopwatchScreen(MDScreen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.title = MDLabel(text="Start Now..!!", halign="center", font_style="H5",
+                             theme_text_color="Custom", text_color=(1, 1, 1, 1),
+                             pos_hint={"center_x": 0.5, "center_y": 0.8})
+
+        self.time_label = MDLabel(text="00:00:00", halign="center", font_style="H2",
+                                  theme_text_color="Custom", text_color=(1, 1, 1, 1),
+                                  pos_hint={"center_x": 0.5, "center_y": 0.55})
+
+        self.start_btn = MDFloatingActionButton(icon="play", md_bg_color=(0.2, 0.6, 1, 1),
+                                                size_hint=(0.17, 0.2),
+                                                pos_hint={"center_x": 0.4, "center_y": 0.25},
+                                                on_release=lambda x: MDApp.get_running_app().toggle_start())
+
+        self.reset_btn = MDFloatingActionButton(icon="content-save", md_bg_color=(1, 0.3, 0.3, 1),
+                                                size_hint=(0.17, 0.2),
+                                                pos_hint={"center_x": 0.6, "center_y": 0.25},
+                                                on_release=lambda x: MDApp.get_running_app().reset())
+
+        self.to_recap_btn = MDFloatingActionButton(icon="arrow-right", md_bg_color="black",
+                                                   size_hint=(0.17, 0.2),
+                                                   pos_hint={"center_x": 0.92, "center_y": 0.1},
+                                                   on_release=lambda x: MDApp.get_running_app().change_screen("recap",  'left'))
+
+        self.add_widget(self.title)
+        self.add_widget(self.time_label)
+        self.add_widget(self.start_btn)
+        self.add_widget(self.reset_btn)
+        self.add_widget(self.to_recap_btn)
+
+class RecapScreen(MDScreen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.layout = BoxLayout(orientation='vertical')
+
+        self.total_today_label = MDLabel(text="Total Hari Ini: 0 jam", halign="center",
+                                         font_style="H6", size_hint_y=0.2,
+                                         theme_text_color="Custom", text_color=(1, 1, 1, 1))
+
+        self.grafik_box = BoxLayout(orientation='vertical', size_hint=(0.9, 0.8),
+                                    pos_hint={'center_x': 0.5, 'center_y': 0.5})
+
+        self.back_btn = MDFloatingActionButton(icon="arrow-left", md_bg_color="black",
+                                               size_hint=(0.17, 0.2),
+                                               pos_hint={"center_x": 0.1, "center_y": 0.1},
+                                               on_release=lambda x: MDApp.get_running_app().change_screen("stopwatch",  'right'))
+
+        self.layout.add_widget(self.total_today_label)
+        self.layout.add_widget(self.grafik_box)
+        self.layout.add_widget(self.back_btn)
+        self.add_widget(self.layout)
 
 class SmartClockApp(MDApp):
     def resource_path(self, relative_path):
-        """Digunakan agar PyInstaller bisa menemukan file .kv atau csv"""
         try:
-            base_path = sys._MEIPASS  # jika dibuild dengan PyInstaller
+            base_path = sys._MEIPASS
         except Exception:
             base_path = os.path.abspath(".")
-
         return os.path.join(base_path, relative_path)
-    
+
     def build(self):
         self.theme_cls.theme_style = "Dark"
         self.theme_cls.primary_palette = "Indigo"
-        return Builder.load_file(self.resource_path("design.kv"))
+        self.screen_manager = ScreenManager()
+        self.stopwatch_screen = StopwatchScreen(name="stopwatch")
+        self.recap_screen = RecapScreen(name="recap")
+        self.screen_manager.add_widget(self.stopwatch_screen)
+        self.screen_manager.add_widget(self.recap_screen)
+        return self.screen_manager
 
     def on_start(self):
         self.running = False
@@ -41,29 +101,29 @@ class SmartClockApp(MDApp):
         self.elapsed_time = 0
 
     def toggle_start(self):
-        screen = self.root.get_screen("stopwatch")
-        if self.running: # di 'off' kan
+        screen = self.stopwatch_screen
+        if self.running:
             Clock.unschedule(self.update_time)
             self.elapsed_time += time.time() - self.start_time
-            screen.ids.start_btn.icon = "play"
-            screen.ids.title.text = "Start Now..!!"
-        else: # di 'on' kan
+            screen.start_btn.icon = "play"
+            screen.title.text = "Start Now..!!"
+        else:
             self.start_time = time.time()
             Clock.schedule_interval(self.update_time, 0.1)
-            screen.ids.start_btn.icon = "pause"
-            screen.ids.title.text = "Fight..!!"
+            screen.start_btn.icon = "pause"
+            screen.title.text = "Fight..!!"
         self.running = not self.running
 
     def reset(self):
-        screen = self.root.get_screen("stopwatch")
+        screen = self.stopwatch_screen
         Clock.unschedule(self.update_time)
         total = self.elapsed_time if self.start_time else 0
         self.simpan_durasi(total)
         self.elapsed_time = 0
         self.running = False
-        screen.ids.time_label.text = "00:00:00"
-        screen.ids.start_btn.icon = "play"
-        screen.ids.title.text = "Start Now..!!"
+        screen.time_label.text = "00:00:00"
+        screen.start_btn.icon = "play"
+        screen.title.text = "Start Now..!!"
 
     def simpan_durasi(self, total_detik):
         today = datetime.today().strftime('%Y-%m-%d')
@@ -82,81 +142,62 @@ class SmartClockApp(MDApp):
         df.to_csv(filename, index=False)
 
     def update_time(self, dt):
-        screen = self.root.get_screen("stopwatch")
+        screen = self.stopwatch_screen
         total = time.time() - self.start_time + self.elapsed_time
-        screen.ids.time_label.text = time.strftime('%H:%M:%S', time.gmtime(total))
+        screen.time_label.text = time.strftime('%H:%M:%S', time.gmtime(total))
 
-    def change_screen(self, screen_name):
-        self.root.current = screen_name
+    def change_screen(self, screen_name, direction):
+        self.screen_manager.transition = SlideTransition(direction=direction)
+        self.screen_manager.current = screen_name
         if screen_name == "recap":
             self.tampilkan_grafik()
 
     def tampilkan_grafik(self):
-        screen = self.root.get_screen("recap")
-        box = screen.ids.grafik_box
+        screen = self.recap_screen
+        box = screen.grafik_box
         box.clear_widgets()
 
         if not os.path.exists("data.csv"):
             return
 
-        # make the plot
         df = pd.read_csv("data.csv")
         df['date'] = pd.to_datetime(df['date'])
         df['duration_hr'] = df['duration_sec'] / 3600
 
-        # Create beautiful plot
         plt.figure(figsize=(12, 6))
-        plt.plot(df['date'], df['duration_hr'], 
-                marker='o', linewidth=3, markersize=8,
-                color='#4A90E2', markerfacecolor="#4A90E2",
-                markeredgecolor='white', markeredgewidth=2)
+        plt.plot(df['date'], df['duration_hr'], marker='o', linewidth=3, markersize=8,
+                 color='#4A90E2', markerfacecolor="#4A90E2",
+                 markeredgecolor='white', markeredgewidth=2)
 
-        # Fill area under curve
-        plt.fill_between(df['date'], df['duration_hr'], 
-                        alpha=0.2, color='#4A90E2')
-
-        # Beautiful styling
+        plt.fill_between(df['date'], df['duration_hr'], alpha=0.2, color='#4A90E2')
         plt.title('Activity Duration', fontsize=18, fontweight='bold', pad=20)
         plt.ylabel('Hour', fontsize=14)
         plt.xlabel('Date', fontsize=14)
         plt.ylim(0, None)
-
-        # Format dates
         plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%d/%m'))
         plt.xticks(rotation=45)
-
-        # Clean grid
         plt.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
         plt.gca().set_facecolor('#FAFAFA')
-
-        # Perfect layout
         plt.tight_layout()
 
-        # Get current figure
         fig = plt.gcf()
-
-        # Render plot ke gambar PNG
         buffer = BytesIO()
         fig.savefig(buffer, format='png')
         buffer.seek(0)
         image_data = base64.b64encode(buffer.read()).decode('utf-8')
         buffer.close()
 
-        # Tampilkan gambar di dalam BoxLayout
         img = Image()
         img.texture = Image(source=f'data:image/png;base64,{image_data}').texture
         box.add_widget(img)
 
-        # Update label total hari ini dalam format jam, menit, detik
         today = pd.to_datetime(datetime.today().strftime('%Y-%m-%d'))
         today_data = df[df['date'] == today]
         total_detik = today_data['duration_sec'].sum() if not today_data.empty else 0
         jam = int(total_detik) // 3600
         menit = int(total_detik % 3600) // 60
         detik = int(total_detik % 60)
-        screen.ids.total_today_label.text = f"Total Today: {jam} hr {menit} min {detik} sec"
-
-    
+        screen.total_today_label.text = f"Total Today: {jam} hr {menit} min {detik} sec"
 
 if __name__ == "__main__":
     SmartClockApp().run()
