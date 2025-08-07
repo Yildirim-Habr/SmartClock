@@ -10,5 +10,5 @@ A stopwatch app built with KivyMD that tracks study time and visualizes daily du
 
 ## Installation
 
-pip install seaborn pandas matplotlib kivy kivymd
+pip install pandas matplotlib kivy kivymd
 
