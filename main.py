@@ -6,25 +6,33 @@ Config.set('graphics', 'height', '300')
 from kivymd.app import MDApp
 from kivy.lang import Builder
 from kivy.clock import Clock
-import time
-from datetime import datetime
-import csv
-import os
-import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
-from kivy.garden.matplotlib.backend_kivyagg import FigureCanvasKivyAgg
 from kivy.uix.image import Image
 from io import BytesIO
+from datetime import datetime
+from kivymd.uix.screen import MDScreen
+
+import time
+import os
 import base64
+import sys
+import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 
 class SmartClockApp(MDApp):
+    def resource_path(self, relative_path):
+        """Digunakan agar PyInstaller bisa menemukan file .kv atau csv"""
+        try:
+            base_path = sys._MEIPASS  # jika dibuild dengan PyInstaller
+        except Exception:
+            base_path = os.path.abspath(".")
 
+        return os.path.join(base_path, relative_path)
+    
     def build(self):
         self.theme_cls.theme_style = "Dark"
         self.theme_cls.primary_palette = "Indigo"
-        return Builder.load_file("design.kv")
+        return Builder.load_file(self.resource_path("design.kv"))
 
     def on_start(self):
         self.running = False
@@ -99,7 +107,7 @@ class SmartClockApp(MDApp):
         plt.figure(figsize=(12, 6))
         plt.plot(df['date'], df['duration_sec'], 
                 marker='o', linewidth=3, markersize=8,
-                color='#4A90E2', markerfacecolor='#F5A623',
+                color='#4A90E2', markerfacecolor="#4A90E2",
                 markeredgecolor='white', markeredgewidth=2)
 
         # Fill area under curve
@@ -146,6 +154,8 @@ class SmartClockApp(MDApp):
         menit = int(total_detik % 3600) // 60
         detik = int(total_detik % 60)
         screen.ids.total_today_label.text = f"Total Today: {jam} hr {menit} min {detik} sec"
+
+    
 
 if __name__ == "__main__":
     SmartClockApp().run()
