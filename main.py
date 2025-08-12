@@ -102,13 +102,14 @@ class SmartClockApp(MDApp):
 
     def toggle_start(self):
         screen = self.stopwatch_screen
+        time_now = time.time()
         if self.running:
             Clock.unschedule(self.update_time)
-            self.elapsed_time += time.time() - self.start_time
+            self.elapsed_time += time_now - self.start_time
             screen.start_btn.icon = "play"
             screen.title.text = "Start Now..!!"
         else:
-            self.start_time = time.time()
+            self.start_time = time_now
             Clock.schedule_interval(self.update_time, 0.1)
             screen.start_btn.icon = "pause"
             screen.title.text = "Fight..!!"
@@ -146,11 +147,55 @@ class SmartClockApp(MDApp):
         total = time.time() - self.start_time + self.elapsed_time
         screen.time_label.text = time.strftime('%H:%M:%S', time.gmtime(total))
 
+    def on_stop(self):
+        # Only save if the stopwatch not already saved
+        # if self.running:
+        total = self.elapsed_time
+        if self.start_time:
+            total += time.time() - self.start_time
+        if total > 0:  # Only save if there's actually time to save
+            self.simpan_durasi(total)
+        return super().on_stop()
+
     def change_screen(self, screen_name, direction):
         self.screen_manager.transition = SlideTransition(direction=direction)
         self.screen_manager.current = screen_name
         if screen_name == "recap":
             self.tampilkan_grafik()
+
+    def correcting_days(self, df):
+        """Fill missing dates between last date and today with 0 duration"""
+
+        # Ensure we have datetime type
+        df['date'] = pd.to_datetime(df['date'])
+
+        # Get date range from last date to today
+        last_date = df['date'].max()
+        today = pd.to_datetime(datetime.today().date())
+        
+        if last_date >= today:
+            # No correction needed
+            return df
+
+        # Create date range only from last date + 1 day to today
+        new_dates = pd.date_range(start=last_date + pd.Timedelta(days=1),
+                                end=today, freq='D')
+
+        # Create a DataFrame for missing dates
+        missing_df = pd.DataFrame({
+            'date': new_dates,
+            'duration_sec': [0] * len(new_dates)
+        })
+
+        # Append and keep order
+        df = pd.concat([df, missing_df], ignore_index=True)
+        df = df.sort_values('date').reset_index(drop=True)
+
+        # Save corrected data
+        df[['date', 'duration_sec']].to_csv("data.csv", index=False)
+
+        return df
+
 
     def tampilkan_grafik(self):
         screen = self.recap_screen
@@ -162,6 +207,9 @@ class SmartClockApp(MDApp):
 
         df = pd.read_csv("data.csv")
         df['date'] = pd.to_datetime(df['date'])
+
+        df = self.correcting_days(df)
+        
         df['duration_hr'] = df['duration_sec'] / 3600
 
         plt.figure(figsize=(12, 6))
