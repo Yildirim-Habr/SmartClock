@@ -1,0 +1,205 @@
+import sys
+import os
+import time
+import pandas as pd
+from datetime import datetime
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QFont, QIcon
+from PySide6.QtWidgets import (
+    QApplication, QWidget, QVBoxLayout, QLabel, QPushButton,
+    QStackedWidget, QHBoxLayout
+)
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+
+
+class StopwatchScreen(QWidget):
+    
+    def __init__(self, app_ref):
+        super().__init__()
+        self.app_ref = app_ref
+
+        layout = QVBoxLayout()
+        layout.setSpacing(20)
+        layout.setAlignment(Qt.AlignCenter)
+
+        self.title = QLabel("Start Now..!!")
+        self.title.setAlignment(Qt.AlignCenter)
+        self.title.setFont(QFont("Arial", 18, QFont.Bold))
+
+        self.time_label = QLabel("00:00:00")
+        self.time_label.setAlignment(Qt.AlignCenter)
+        self.time_label.setFont(QFont("Arial", 32, QFont.Bold))
+
+        btn_layout = QHBoxLayout()
+
+        self.start_btn = QPushButton("▶ Start")
+        self.start_btn.setFixedSize(100, 50)
+        self.start_btn.setStyleSheet("background-color: #4CAF50; color: white; border-radius: 10px;")
+        self.start_btn.clicked.connect(self.app_ref.toggle_start)
+
+        self.reset_btn = QPushButton("💾 Save")
+        self.reset_btn.setFixedSize(100, 50)
+        self.reset_btn.setStyleSheet("background-color: #2196F3; color: white; border-radius: 10px;")
+        self.reset_btn.clicked.connect(self.app_ref.reset)
+
+        btn_layout.addWidget(self.start_btn)
+        btn_layout.addWidget(self.reset_btn)
+        
+        layout.addWidget(self.title)
+        layout.addWidget(self.time_label)
+        layout.addLayout(btn_layout)
+
+        self.setLayout(layout)
+
+        self.to_recap_btn = QPushButton(">>", self)
+        self.to_recap_btn.move(400 - 50 - 10, 300 - 40 - 10) 
+        self.to_recap_btn.setFixedSize(50, 40)
+        self.to_recap_btn.setStyleSheet("background-color: black; color: white; border-radius: 10px;")
+        self.to_recap_btn.clicked.connect(lambda: self.app_ref.change_screen(1))
+
+
+class RecapScreen(QWidget):
+    def __init__(self, app_ref):
+        super().__init__()
+        self.app_ref = app_ref
+
+        layout = QVBoxLayout()
+        layout.setSpacing(15)
+        layout.setAlignment(Qt.AlignTop)
+
+        self.total_today_label = QLabel("Total Today: 0 hr")
+        self.total_today_label.setAlignment(Qt.AlignCenter)
+        self.total_today_label.setFont(QFont("Arial", 14, QFont.Bold))
+
+        self.canvas = FigureCanvas(plt.Figure(figsize=(6, 3)))
+
+        self.back_btn = QPushButton("<<")
+        self.back_btn.setFixedSize(40, 40)
+        self.back_btn.setStyleSheet("background-color: black; color: white; border-radius: 10px;")
+        self.back_btn.clicked.connect(lambda: self.app_ref.change_screen(0))
+
+        layout.addWidget(self.total_today_label)
+        layout.addWidget(self.canvas)
+        layout.addWidget(self.back_btn, alignment=Qt.AlignLeft)
+
+        self.setLayout(layout)
+
+class SmartClockApp(QApplication):
+    def resource_path(self, relative_path):
+        """Get absolute path to resource, works for dev and for PyInstaller."""
+        base_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+        return os.path.join(base_path, relative_path)
+    
+    def __init__(self, argv):
+        super().__init__(argv)
+
+        self.running = False
+        self.start_time = None
+        self.elapsed_time = 0
+
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_time)
+
+        self.stack = QStackedWidget()
+
+        self.stopwatch_screen = StopwatchScreen(self)
+        self.recap_screen = RecapScreen(self)
+
+        self.stack.addWidget(self.stopwatch_screen)
+        self.stack.addWidget(self.recap_screen)
+
+        self.stack.setFixedSize(400, 300)
+        self.stack.show()
+
+    def toggle_start(self):
+        if self.running:
+            self.timer.stop()
+            self.elapsed_time += time.time() - self.start_time
+            self.stopwatch_screen.start_btn.setText("▶ Start")
+            self.stopwatch_screen.start_btn.setStyleSheet("background-color: #4CAF50; color: white; border-radius: 10px;")
+            self.stopwatch_screen.title.setText("Start Now..!!")
+        else:
+            self.start_time = time.time()
+            self.timer.start(100)
+            self.stopwatch_screen.start_btn.setText("⏸ Pause")
+            self.stopwatch_screen.start_btn.setStyleSheet("background-color: #F44336; color: white; border-radius: 10px;")
+            self.stopwatch_screen.title.setText("Fight..!!")
+        self.running = not self.running
+
+    def reset(self):
+        total = self.elapsed_time if self.start_time else 0
+        self.simpan_durasi(total)
+        self.elapsed_time = 0
+        self.running = False
+        self.timer.stop()
+        self.stopwatch_screen.time_label.setText("00:00:00")
+        self.stopwatch_screen.start_btn.setText("▶ Start")
+        self.stopwatch_screen.start_btn.setStyleSheet("background-color: #4CAF50; color: white; border-radius: 10px;")
+        self.stopwatch_screen.title.setText("Start Now..!!")
+
+    def simpan_durasi(self, total_detik):
+        today = datetime.today().strftime('%Y-%m-%d')
+        filename = "data.csv"
+
+        if os.path.exists(filename):
+            df = pd.read_csv(filename)
+            if today in df['date'].values:
+                df.loc[df['date'] == today, 'duration_sec'] += int(total_detik)
+            else:
+                df.loc[len(df)] = [today, int(total_detik)]
+        else:
+            df = pd.DataFrame([[today, int(total_detik)]], columns=["date", "duration_sec"])
+
+        df.to_csv(filename, index=False)
+
+    def update_time(self):
+        total = time.time() - self.start_time + self.elapsed_time
+        self.stopwatch_screen.time_label.setText(time.strftime('%H:%M:%S', time.gmtime(total)))
+
+    def change_screen(self, index):
+        self.stack.setCurrentIndex(index)
+        if index == 1:
+            self.tampilkan_grafik()
+
+    def tampilkan_grafik(self):
+        filename = "data.csv"
+        if not os.path.exists(filename):
+            return
+        df = pd.read_csv(filename)
+        df['date'] = pd.to_datetime(df['date'])
+        df['duration_hr'] = df['duration_sec'] / 3600
+
+        ax = self.recap_screen.canvas.figure.subplots()
+        ax.clear()
+        ax.plot(df['date'], df['duration_hr'], marker='o', linewidth=3, markersize=8,
+                 color='#4A90E2', markerfacecolor="#4A90E2", markeredgewidth=2)
+        ax.fill_between(df['date'], df['duration_hr'], alpha=0.2, color='#4A90E2')
+        ax.set_title("Activity Duration")
+        ax.set_ylabel("Hours")
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%d/%m'))
+        ax.grid(True, alpha=0.3)
+        self.recap_screen.canvas.draw()
+
+        today = datetime.today().strftime('%Y-%m-%d')
+        today_data = df[df['date'] == today]
+        total_detik = today_data['duration_sec'].sum() if not today_data.empty else 0
+        jam = int(total_detik) // 3600
+        menit = int(total_detik % 3600) // 60
+        detik = int(total_detik % 60)
+        self.recap_screen.total_today_label.setText(f"Total Today: {jam} hr {menit} min {detik} sec")
+
+
+if __name__ == "__main__":
+    app = SmartClockApp(sys.argv)
+
+    icon_path = app.resource_path("icon.ico")
+
+    app.setApplicationName("SmartClock")
+    app.setWindowIcon(QIcon(icon_path))  # <-- add here
+
+    app.stack.setWindowTitle("SmartClock")
+    app.stack.setWindowIcon(QIcon(icon_path))
+
+    sys.exit(app.exec())
