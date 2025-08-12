@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import matplotlib.patches as patches
 
 
 class StopwatchScreen(QWidget):
@@ -136,7 +137,7 @@ class SmartClockApp(QApplication):
         self.timer.stop()
         self.stopwatch_screen.time_label.setText("00:00:00")
         self.stopwatch_screen.start_btn.setText("▶ Start")
-        self.stopwatch_screen.start_btn.setStyleSheet("background-color: #4CAF50; color: white; border-radius: 10px;")
+        self.stopwatch_screen.start_btn.setStyleSheet("background-color: #4CAF50; color: white; border-radius: 5px;")
         self.stopwatch_screen.title.setText("Start Now..!!")
 
     def simpan_durasi(self, total_detik):
@@ -171,15 +172,30 @@ class SmartClockApp(QApplication):
         df['date'] = pd.to_datetime(df['date'])
         df['duration_hr'] = df['duration_sec'] / 3600
 
-        ax = self.recap_screen.canvas.figure.subplots()
-        ax.clear()
-        ax.plot(df['date'], df['duration_hr'], marker='o', linewidth=3, markersize=8,
+        fig = self.recap_screen.canvas.figure
+        ax = fig.add_subplot(111)  # Create a single set of axes
+        
+        fig.patches.append(
+            patches.Rectangle(
+                (0, 0), 1, 1,                # bottom-left corner, width=1, height=1
+                transform=fig.transFigure,   # figure-relative coordinates
+                fill=False,                   # no fill, just border
+                linewidth=2,                  # border thickness
+                edgecolor='black'             # border color
+            )
+        )
+
+        ax.plot(df['date'], df['duration_hr'], marker='o', linewidth=1, markersize=3,
                  color='#4A90E2', markerfacecolor="#4A90E2", markeredgewidth=2)
         ax.fill_between(df['date'], df['duration_hr'], alpha=0.2, color='#4A90E2')
+
+        ax.set_xlabel("Date")      
         ax.set_title("Activity Duration")
         ax.set_ylabel("Hours")
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%d/%m'))
         ax.grid(True, alpha=0.3)
+        fig.tight_layout()
+
         self.recap_screen.canvas.draw()
 
         today = datetime.today().strftime('%Y-%m-%d')
