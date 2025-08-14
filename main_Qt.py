@@ -16,7 +16,6 @@ import matplotlib.patches as patches
 
 
 class StopwatchScreen(QWidget):
-    
     def __init__(self, app_ref):
         super().__init__()
         self.app_ref = app_ref
@@ -27,11 +26,16 @@ class StopwatchScreen(QWidget):
 
         self.title = QLabel("Start Now..!!")
         self.title.setAlignment(Qt.AlignCenter)
-        self.title.setFont(QFont("Arial", 18, QFont.Bold))
+        self.title.setFont(QFont("Arial", 22, QFont.Bold))
 
         self.time_label = QLabel("00:00:00")
         self.time_label.setAlignment(Qt.AlignCenter)
         self.time_label.setFont(QFont("Arial", 32, QFont.Bold))
+        self.time_label.setStyleSheet("""
+            border: 2px solid grey;
+            border-radius: 10px;
+            padding: 5px;
+        """)
 
         btn_layout = QHBoxLayout()
 
@@ -96,6 +100,8 @@ class SmartClockApp(QApplication):
     def __init__(self, argv):
         super().__init__(argv)
 
+        self.aboutToQuit.connect(self.handle_app_exit)  # Will run when app is closing
+
         self.running = False
         self.start_time = None
         self.elapsed_time = 0
@@ -113,6 +119,13 @@ class SmartClockApp(QApplication):
 
         self.stack.setFixedSize(400, 300)
         self.stack.show()
+
+    def handle_app_exit(self):
+        total = self.elapsed_time
+        if self.running: 
+            total += time.time() - self.start_time
+
+        self.simpan_durasi(total)
 
     def toggle_start(self):
         if self.running:
@@ -164,12 +177,48 @@ class SmartClockApp(QApplication):
         if index == 1:
             self.tampilkan_grafik()
 
+    def correcting_days(self, df):
+        """Fill missing dates between last date and today with 0 duration"""
+
+        # Ensure we have datetime type
+        df['date'] = pd.to_datetime(df['date'])
+
+        # Get date range from last date to today
+        last_date = df['date'].max()
+        today = pd.to_datetime(datetime.today().date())
+        
+        if last_date >= today:
+            # No correction needed
+            return df
+
+        # Create date range only from last date + 1 day to today
+        new_dates = pd.date_range(start=last_date + pd.Timedelta(days=1),
+                                end=today, freq='D')
+
+        # Create a DataFrame for missing dates
+        missing_df = pd.DataFrame({
+            'date': new_dates,
+            'duration_sec': [0] * len(new_dates)
+        })
+
+        # Append and keep order
+        df = pd.concat([df, missing_df], ignore_index=True)
+        df = df.sort_values('date').reset_index(drop=True)
+
+        # Save corrected data
+        df[['date', 'duration_sec']].to_csv("data.csv", index=False)
+
+        return df
+
     def tampilkan_grafik(self):
         filename = "data.csv"
         if not os.path.exists(filename):
             return
         df = pd.read_csv(filename)
         df['date'] = pd.to_datetime(df['date'])
+
+        df = self.correcting_days(df)
+
         df['duration_hr'] = df['duration_sec'] / 3600
 
         fig = self.recap_screen.canvas.figure
@@ -188,11 +237,11 @@ class SmartClockApp(QApplication):
         ax.plot(df['date'], df['duration_hr'], marker='o', linewidth=1, markersize=3,
                  color='#4A90E2', markerfacecolor="#4A90E2", markeredgewidth=2)
         ax.fill_between(df['date'], df['duration_hr'], alpha=0.2, color='#4A90E2')
-
-        ax.set_xlabel("Date")      
+   
         ax.set_title("Activity Duration")
         ax.set_ylabel("Hours")
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%d/%m'))
+        # ax.xaxis.set_major_formatter(mdates.DateFormatter('%d/%m'))
+        ax.xaxis.set_visible(False)
         ax.grid(True, alpha=0.3)
         fig.tight_layout()
 
